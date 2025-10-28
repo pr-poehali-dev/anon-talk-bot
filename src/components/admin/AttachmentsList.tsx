@@ -10,7 +10,6 @@ interface Attachment {
   id: number;
   chat_id: number;
   photo_url: string;
-  content_type: string;
   sent_at: string;
   sender_gender: string;
 }
@@ -86,14 +85,6 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
     return { icon: 'User', color: 'text-gray-500' };
   };
 
-  const getTypeIcon = (contentType: string) => {
-    if (contentType === 'photo') return { icon: 'Image', color: 'bg-blue-500' };
-    if (contentType === 'video') return { icon: 'Video', color: 'bg-purple-500' };
-    if (contentType === 'voice') return { icon: 'Mic', color: 'bg-green-500' };
-    if (contentType === 'video_note') return { icon: 'Circle', color: 'bg-indigo-500' };
-    return { icon: 'File', color: 'bg-gray-500' };
-  };
-
   return (
     <>
       <Card>
@@ -139,40 +130,21 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {attachments.map((attachment) => {
                 const genderInfo = getGenderIcon(attachment.sender_gender);
-                const typeInfo = getTypeIcon(attachment.content_type);
-                const isPhoto = attachment.content_type === 'photo';
-                const isVideo = attachment.content_type === 'video' || attachment.content_type === 'video_note';
-                const isVoice = attachment.content_type === 'voice';
-                
                 return (
                   <div
                     key={attachment.id}
                     className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer transition-transform hover:scale-105"
-                    onClick={() => isPhoto && setSelectedImage(attachment.photo_url)}
+                    onClick={() => setSelectedImage(attachment.photo_url)}
                   >
-                    {isPhoto && (
-                      <img
-                        src={attachment.photo_url}
-                        alt={`Фото из чата ${attachment.chat_id}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    )}
-                    {(isVideo || isVoice) && (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className={`${typeInfo.color} rounded-full p-6`}>
-                          <Icon name={typeInfo.icon as any} size={48} className="text-white" />
-                        </div>
-                      </div>
-                    )}
-                    <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
-                      <div className={`${typeInfo.color}/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1`}>
-                        <Icon name={typeInfo.icon as any} size={12} />
-                      </div>
-                      <div className="bg-red-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                        <Icon name="Clock" size={12} />
-                        {getTimeUntilDeletion(attachment.sent_at)}
-                      </div>
+                    <img
+                      src={attachment.photo_url}
+                      alt={`Фото из чата ${attachment.chat_id}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-2 right-2 bg-red-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                      <Icon name="Clock" size={12} />
+                      {getTimeUntilDeletion(attachment.sent_at)}
                     </div>
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
                       <div className="flex justify-between items-start">

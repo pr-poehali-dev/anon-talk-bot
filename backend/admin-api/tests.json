@@ -26,6 +26,9 @@
       "method": "GET",
       "path": "/?endpoint=attachments",
       "expectedStatus": 200,
+      "expectedBody": {
+        "attachments": []
+      },
       "bodyMatcher": "partial"
     }
   ]
