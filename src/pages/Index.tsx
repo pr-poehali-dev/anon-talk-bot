@@ -104,9 +104,9 @@ export default function Index() {
     setLoading(false);
   };
 
-  const genderData = stats ? [
-    { name: 'Мужчины', value: stats.gender_distribution.male },
-    { name: 'Женщины', value: stats.gender_distribution.female },
+  const genderData = stats?.gender_distribution ? [
+    { name: 'Мужчины', value: stats.gender_distribution.male || 0 },
+    { name: 'Женщины', value: stats.gender_distribution.female || 0 },
   ] : [];
 
   const chartData = stats?.hourly_stats.map(item => ({
