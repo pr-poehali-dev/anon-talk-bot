@@ -60,6 +60,13 @@ def send_video_note(chat_id: int, video_note_id: str) -> bool:
     response = requests.post(url, json=data)
     return response.status_code == 200
 
+def send_sticker(chat_id: int, sticker_id: str) -> bool:
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendSticker'
+    data = {'chat_id': chat_id, 'sticker': sticker_id}
+    
+    response = requests.post(url, json=data)
+    return response.status_code == 200
+
 def get_file_url(file_id: str) -> Optional[str]:
     try:
         url = f'https://api.telegram.org/bot{BOT_TOKEN}/getFile'
@@ -478,6 +485,32 @@ def handle_voice(chat_id: int, voice_id: str):
     cursor.close()
     conn.close()
 
+def handle_sticker(chat_id: int, sticker_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
+        return
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if chat_data:
+        partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+        
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
+        
+        send_sticker(partner_id, sticker_id)
+    
+    cursor.close()
+    conn.close()
+
 def handle_video_note(chat_id: int, video_note_id: str):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -560,6 +593,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         video = message.get('video')
         voice = message.get('voice')
         video_note = message.get('video_note')
+        sticker = message.get('sticker')
         
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -592,6 +626,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif video_note:
             video_note_id = video_note['file_id']
             handle_video_note(chat_id, video_note_id)
+        elif sticker:
+            sticker_id = sticker['file_id']
+            handle_sticker(chat_id, sticker_id)
         elif text == '/start':
             handle_start(chat_id, username)
         elif text == '/stop':
