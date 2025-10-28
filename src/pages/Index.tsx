@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
+import LoginForm from '@/components/LoginForm';
 import {
   AreaChart,
   Area,
@@ -20,6 +21,7 @@ import {
 
 const COLORS = ['#9b87f5', '#0EA5E9', '#D946EF', '#F97316'];
 const API_URL = 'https://functions.poehali.dev/3d80763a-6e9c-47e8-ad39-f66f686907a6';
+const AUTH_API_URL = 'https://functions.poehali.dev/7c36ba9c-1436-4f94-ac57-6e4d16640f39';
 
 interface Stats {
   active_users: number;
@@ -57,6 +59,64 @@ export default function Index() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  const verifySession = async (token: string) => {
+    try {
+      const response = await fetch(AUTH_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify',
+          session_token: token
+        })
+      });
+      const data = await response.json();
+      return data.valid === true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleLogout = async () => {
+    if (sessionToken) {
+      await fetch(AUTH_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'logout',
+          session_token: sessionToken
+        })
+      });
+    }
+    localStorage.removeItem('admin_session');
+    setIsAuthenticated(false);
+    setSessionToken(null);
+  };
+
+  const handleLoginSuccess = (token: string) => {
+    setSessionToken(token);
+    setIsAuthenticated(true);
+  };
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('admin_session');
+      if (token) {
+        const valid = await verifySession(token);
+        if (valid) {
+          setSessionToken(token);
+          setIsAuthenticated(true);
+        } else {
+          localStorage.removeItem('admin_session');
+        }
+      }
+      setAuthChecking(false);
+    };
+    checkAuth();
+  }, []);
 
   const fetchStats = async () => {
     try {
@@ -125,6 +185,21 @@ export default function Index() {
     return g === 'male' ? 'М' : 'Ж';
   };
 
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Icon name="Loader2" size={48} className="text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Проверка доступа...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginForm onSuccess={handleLoginSuccess} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -153,6 +228,10 @@ export default function Index() {
             <Button onClick={handleRefresh} variant="outline" size="lg" disabled={loading}>
               <Icon name={loading ? "Loader2" : "RefreshCw"} size={18} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
               Обновить
+            </Button>
+            <Button onClick={handleLogout} variant="outline" size="lg">
+              <Icon name="LogOut" size={18} className="mr-2" />
+              Выйти
             </Button>
             <Badge variant="outline" className="px-4 py-2 text-lg font-mono">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow inline-block mr-2" />
