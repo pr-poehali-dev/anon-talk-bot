@@ -192,11 +192,13 @@ def get_attachments() -> Dict[str, Any]:
             m.id,
             m.chat_id,
             m.photo_url,
+            m.content_type,
             m.sent_at,
             u.gender as sender_gender
         FROM t_p14838969_anon_talk_bot.messages m
         JOIN t_p14838969_anon_talk_bot.users u ON m.sender_telegram_id = u.telegram_id
         WHERE m.photo_url IS NOT NULL
+        AND m.content_type IN ('photo', 'video', 'voice', 'video_note')
         AND m.sent_at >= NOW() - INTERVAL '24 hours'
         ORDER BY m.sent_at DESC
         LIMIT 100
@@ -212,6 +214,7 @@ def get_attachments() -> Dict[str, Any]:
             'id': int(att['id']),
             'chat_id': int(att['chat_id']),
             'photo_url': att['photo_url'],
+            'content_type': att['content_type'],
             'sent_at': att['sent_at'].isoformat(),
             'sender_gender': att['sender_gender'] or 'unknown'
         })
