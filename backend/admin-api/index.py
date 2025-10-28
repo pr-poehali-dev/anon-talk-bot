@@ -20,7 +20,7 @@ def get_stats() -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT COUNT(*) as total FROM users WHERE last_active > NOW() - INTERVAL '1 hour'")
+    cursor.execute("SELECT COUNT(*) as total FROM users WHERE last_active > NOW() - INTERVAL '5 minutes'")
     active_users = cursor.fetchone()['total']
     
     cursor.execute("SELECT COUNT(*) as total FROM chats WHERE is_active = TRUE")
