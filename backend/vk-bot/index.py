@@ -14,7 +14,16 @@ import random
 
 GROUP_TOKEN = os.environ.get('VK_GROUP_TOKEN', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 VK_API_VERSION = '5.131'
+
+def get_db_connection():
+    """Get database connection with correct search_path"""
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute("SET search_path TO t_p14838969_anon_talk_bot, public")
+    cursor.close()
+    return conn
 
 def vk_api_call(method: str, params: Dict[str, Any]) -> Optional[Dict]:
     """Call VK API method"""
@@ -98,7 +107,7 @@ def send_document(user_id: int, doc_id: str, caption: Optional[str] = None) -> b
 
 def get_or_create_user(user_id: int, username: str) -> None:
     """Get or create VK user in database"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -113,7 +122,7 @@ def get_or_create_user(user_id: int, username: str) -> None:
 
 def get_user(user_id: int) -> Optional[Dict]:
     """Get VK user from database"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     cursor.execute('SELECT * FROM users WHERE platform_id = %s AND platform = %s', (str(user_id), 'vk'))
@@ -126,7 +135,7 @@ def get_user(user_id: int) -> Optional[Dict]:
 
 def update_user_status(user_id: int, status: str) -> None:
     """Update VK user status"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('UPDATE users SET status = %s WHERE platform_id = %s AND platform = %s', 
@@ -138,7 +147,7 @@ def update_user_status(user_id: int, status: str) -> None:
 
 def update_user_gender(user_id: int, gender: str) -> None:
     """Update VK user gender"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('UPDATE users SET gender = %s WHERE platform_id = %s AND platform = %s', 
@@ -150,7 +159,7 @@ def update_user_gender(user_id: int, gender: str) -> None:
 
 def update_user_preference(user_id: int, preference: str) -> None:
     """Update VK user gender preference"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('UPDATE users SET gender_preference = %s WHERE platform_id = %s AND platform = %s', 
@@ -162,7 +171,7 @@ def update_user_preference(user_id: int, preference: str) -> None:
 
 def set_searching(user_id: int, searching: bool) -> None:
     """Set VK user searching status"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('UPDATE users SET is_searching = %s WHERE platform_id = %s AND platform = %s', 
@@ -174,14 +183,14 @@ def set_searching(user_id: int, searching: bool) -> None:
 
 def create_chat(user1_id: int, user2_id: int, user2_platform: str) -> int:
     """Create chat between two users (cross-platform)"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
         INSERT INTO chats (user1_platform_id, user1_platform, user2_platform_id, user2_platform, status)
         VALUES (%s, %s, %s, %s, %s)
         RETURNING id
-    ''', (str(user1_id), 'vk', user2_platform_id, user2_platform, 'active'))
+    ''', (str(user1_id), 'vk', str(user2_id), user2_platform, 'active'))
     
     chat_id = cursor.fetchone()[0]
     
@@ -193,7 +202,7 @@ def create_chat(user1_id: int, user2_id: int, user2_platform: str) -> int:
 
 def get_active_chat(user_id: int) -> Optional[Dict]:
     """Get active chat for VK user"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     cursor.execute('''
@@ -212,7 +221,7 @@ def get_active_chat(user_id: int) -> Optional[Dict]:
 
 def end_chat(user_id: int) -> None:
     """End active chat for VK user"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -228,7 +237,7 @@ def end_chat(user_id: int) -> None:
 
 def find_partner(user_id: int, gender_filter: Optional[str] = None) -> Optional[Dict]:
     """Find chat partner (cross-platform search)"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     if gender_filter:
@@ -267,7 +276,7 @@ def get_partner_info(user_id: int) -> Optional[Dict]:
     partner_id = chat['user2_platform_id'] if chat['user1_platform_id'] == str(user_id) else chat['user1_platform_id']
     partner_platform = chat['user2_platform'] if chat['user1_platform_id'] == str(user_id) else chat['user1_platform']
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     cursor.execute('SELECT * FROM users WHERE platform_id = %s AND platform = %s', (partner_id, partner_platform))
@@ -300,23 +309,20 @@ def send_to_partner(user_id: int, message_type: str, content: str, caption: Opti
             return send_document(partner_id, content, caption)
     elif partner_platform == 'telegram':
         # Send to Telegram user via Telegram API
-        import os
-        telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-        
         if message_type == 'text':
-            url = f'https://api.telegram.org/bot{telegram_token}/sendMessage'
+            url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage'
             requests.post(url, json={'chat_id': partner_id, 'text': content})
         elif message_type == 'photo':
-            url = f'https://api.telegram.org/bot{telegram_token}/sendPhoto'
+            url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto'
             requests.post(url, json={'chat_id': partner_id, 'photo': content, 'caption': caption})
         elif message_type == 'video':
-            url = f'https://api.telegram.org/bot{telegram_token}/sendVideo'
+            url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendVideo'
             requests.post(url, json={'chat_id': partner_id, 'video': content, 'caption': caption})
         elif message_type == 'voice':
-            url = f'https://api.telegram.org/bot{telegram_token}/sendVoice'
+            url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendVoice'
             requests.post(url, json={'chat_id': partner_id, 'voice': content})
         elif message_type == 'document':
-            url = f'https://api.telegram.org/bot{telegram_token}/sendDocument'
+            url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument'
             requests.post(url, json={'chat_id': partner_id, 'document': content, 'caption': caption})
         
         return True
