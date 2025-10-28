@@ -538,6 +538,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         voice = message.get('voice')
         video_note = message.get('video_note')
         
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(f"SELECT is_searching FROM users WHERE telegram_id = {chat_id}")
+        user_check = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if user_check and user_check['is_searching']:
+            if text not in ['/stop', '❌ Завершить диалог']:
+                send_message(chat_id, '⏳ Идёт поиск собеседника... Используйте /stop для отмены')
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'ok': True})
+                }
+        
         if photo:
             largest_photo = photo[-1]
             photo_id = largest_photo['file_id']
