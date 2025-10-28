@@ -16,14 +16,11 @@ GROUP_TOKEN = os.environ.get('VK_GROUP_TOKEN', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 VK_API_VERSION = '5.131'
+SCHEMA = 't_p14838969_anon_talk_bot'
 
 def get_db_connection():
-    """Get database connection with correct search_path"""
-    conn = psycopg2.connect(DATABASE_URL)
-    cursor = conn.cursor()
-    cursor.execute("SET search_path TO t_p14838969_anon_talk_bot, public")
-    cursor.close()
-    return conn
+    """Get database connection"""
+    return psycopg2.connect(DATABASE_URL)
 
 def vk_api_call(method: str, params: Dict[str, Any]) -> Optional[Dict]:
     """Call VK API method"""
@@ -110,8 +107,8 @@ def get_or_create_user(user_id: int, username: str) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        INSERT INTO users (platform_id, platform, username, gender, status, is_searching)
+    cursor.execute(f'''
+        INSERT INTO {SCHEMA}.users (platform_id, platform, username, gender, status, is_searching)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (platform_id, platform) DO NOTHING
     ''', (str(user_id), 'vk', username, 'not_set', 'idle', False))
@@ -125,7 +122,7 @@ def get_user(user_id: int) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute('SELECT * FROM users WHERE platform_id = %s AND platform = %s', (str(user_id), 'vk'))
+    cursor.execute(f'SELECT * FROM {SCHEMA}.users WHERE platform_id = %s AND platform = %s', (str(user_id), 'vk'))
     user = cursor.fetchone()
     
     cursor.close()
@@ -138,7 +135,7 @@ def update_user_status(user_id: int, status: str) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('UPDATE users SET status = %s WHERE platform_id = %s AND platform = %s', 
+    cursor.execute(f'UPDATE {SCHEMA}.users SET status = %s WHERE platform_id = %s AND platform = %s', 
                    (status, str(user_id), 'vk'))
     
     conn.commit()
@@ -150,7 +147,7 @@ def update_user_gender(user_id: int, gender: str) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('UPDATE users SET gender = %s WHERE platform_id = %s AND platform = %s', 
+    cursor.execute(f'UPDATE {SCHEMA}.users SET gender = %s WHERE platform_id = %s AND platform = %s', 
                    (gender, str(user_id), 'vk'))
     
     conn.commit()
@@ -162,7 +159,7 @@ def update_user_preference(user_id: int, preference: str) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('UPDATE users SET gender_preference = %s WHERE platform_id = %s AND platform = %s', 
+    cursor.execute(f'UPDATE {SCHEMA}.users SET gender_preference = %s WHERE platform_id = %s AND platform = %s', 
                    (preference, str(user_id), 'vk'))
     
     conn.commit()
@@ -174,7 +171,7 @@ def set_searching(user_id: int, searching: bool) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('UPDATE users SET is_searching = %s WHERE platform_id = %s AND platform = %s', 
+    cursor.execute(f'UPDATE {SCHEMA}.users SET is_searching = %s WHERE platform_id = %s AND platform = %s', 
                    (searching, str(user_id), 'vk'))
     
     conn.commit()
@@ -186,8 +183,8 @@ def create_chat(user1_id: int, user2_id: int, user2_platform: str) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        INSERT INTO chats (user1_platform_id, user1_platform, user2_platform_id, user2_platform, status)
+    cursor.execute(f'''
+        INSERT INTO {SCHEMA}.chats (user1_platform_id, user1_platform, user2_platform_id, user2_platform, status)
         VALUES (%s, %s, %s, %s, %s)
         RETURNING id
     ''', (str(user1_id), 'vk', str(user2_id), user2_platform, 'active'))
@@ -205,8 +202,8 @@ def get_active_chat(user_id: int) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute('''
-        SELECT * FROM chats 
+    cursor.execute(f'''
+        SELECT * FROM {SCHEMA}.chats 
         WHERE ((user1_platform_id = %s AND user1_platform = %s) 
                OR (user2_platform_id = %s AND user2_platform = %s))
         AND status = %s
@@ -224,8 +221,8 @@ def end_chat(user_id: int) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        UPDATE chats SET status = %s 
+    cursor.execute(f'''
+        UPDATE {SCHEMA}.chats SET status = %s 
         WHERE ((user1_platform_id = %s AND user1_platform = %s) 
                OR (user2_platform_id = %s AND user2_platform = %s))
         AND status = %s
@@ -241,8 +238,8 @@ def find_partner(user_id: int, gender_filter: Optional[str] = None) -> Optional[
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     if gender_filter:
-        cursor.execute('''
-            SELECT * FROM users 
+        cursor.execute(f'''
+            SELECT * FROM {SCHEMA}.users 
             WHERE platform_id != %s 
             AND is_searching = %s 
             AND status = %s
@@ -251,8 +248,8 @@ def find_partner(user_id: int, gender_filter: Optional[str] = None) -> Optional[
             LIMIT 1
         ''', (str(user_id), True, 'idle', gender_filter))
     else:
-        cursor.execute('''
-            SELECT * FROM users 
+        cursor.execute(f'''
+            SELECT * FROM {SCHEMA}.users 
             WHERE NOT (platform_id = %s AND platform = %s)
             AND is_searching = %s 
             AND status = %s
@@ -279,7 +276,7 @@ def get_partner_info(user_id: int) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute('SELECT * FROM users WHERE platform_id = %s AND platform = %s', (partner_id, partner_platform))
+    cursor.execute(f'SELECT * FROM {SCHEMA}.users WHERE platform_id = %s AND platform = %s', (partner_id, partner_platform))
     partner = cursor.fetchone()
     
     cursor.close()
