@@ -13,6 +13,15 @@ import requests
 
 BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+WEBHOOK_URL = 'https://functions.poehali.dev/757a89cf-4d2d-4573-ba6a-6bfd8aa98d9c'
+
+def setup_webhook():
+    try:
+        url = f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook'
+        response = requests.post(url, json={'url': WEBHOOK_URL})
+        return response.status_code == 200
+    except:
+        return False
 
 def send_message(chat_id: int, text: str, reply_markup: Optional[Dict] = None) -> bool:
     url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
@@ -291,7 +300,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         text = message.get('text', '')
         username = message.get('from', {}).get('username')
         
-        if text == '/start' or text == '◀️ Назад':
+        if text == '/start':
+            setup_webhook()
+            handle_start(chat_id, username)
+        elif text == '◀️ Назад':
             handle_start(chat_id, username)
         elif text == '👤 Указать пол':
             handle_set_gender(chat_id)
