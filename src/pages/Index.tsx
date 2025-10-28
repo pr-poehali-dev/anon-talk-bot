@@ -96,10 +96,13 @@ export default function Index() {
     };
     
     loadData();
-    const interval = setInterval(loadData, 10000);
-    
-    return () => clearInterval(interval);
   }, []);
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    await Promise.all([fetchStats(), fetchChats(), fetchComplaints()]);
+    setLoading(false);
+  };
 
   const genderData = stats ? [
     { name: 'Мужчины', value: stats.gender_distribution.male },
@@ -146,10 +149,16 @@ export default function Index() {
             </h1>
             <p className="text-muted-foreground mt-1">Панель администратора</p>
           </div>
-          <Badge variant="outline" className="px-4 py-2 text-lg font-mono">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow inline-block mr-2" />
-            Онлайн
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleRefresh} variant="outline" size="lg" disabled={loading}>
+              <Icon name={loading ? "Loader2" : "RefreshCw"} size={18} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
+            <Badge variant="outline" className="px-4 py-2 text-lg font-mono">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow inline-block mr-2" />
+              Онлайн
+            </Badge>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -339,10 +348,6 @@ export default function Index() {
                   <Icon name="MessageCircle" size={20} />
                   Активные диалоги ({chats.length})
                 </h3>
-                <Button variant="outline" size="sm">
-                  <Icon name="RefreshCw" size={16} className="mr-2" />
-                  Обновить
-                </Button>
               </div>
 
               <div className="space-y-3">
