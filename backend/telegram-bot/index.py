@@ -32,6 +32,28 @@ def send_message(chat_id: int, text: str, reply_markup: Optional[Dict] = None) -
     response = requests.post(url, json=data)
     return response.status_code == 200
 
+def send_photo(chat_id: int, photo_id: str, caption: Optional[str] = None) -> bool:
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto'
+    data = {'chat_id': chat_id, 'photo': photo_id}
+    if caption:
+        data['caption'] = caption
+        data['parse_mode'] = 'HTML'
+    
+    response = requests.post(url, json=data)
+    return response.status_code == 200
+
+def get_photo_url(file_id: str) -> Optional[str]:
+    try:
+        url = f'https://api.telegram.org/bot{BOT_TOKEN}/getFile'
+        response = requests.post(url, json={'file_id': file_id})
+        if response.status_code == 200:
+            file_path = response.json().get('result', {}).get('file_path')
+            if file_path:
+                return f'https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}'
+        return None
+    except:
+        return None
+
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = True
@@ -304,8 +326,47 @@ def handle_message(chat_id: int, text: str):
         
         cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
         
+        text_escaped = escape_sql(text)
+        cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'text', {text_escaped})")
+        
         text_escaped = text.replace('<', '&lt;').replace('>', '&gt;')
         send_message(partner_id, f'💬 <b>Собеседник:</b>\n{text_escaped}')
+    
+    cursor.close()
+    conn.close()
+
+def handle_photo(chat_id: int, photo_id: str, caption: Optional[str] = None):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
+        return
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if chat_data:
+        partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+        
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
+        
+        photo_url = get_photo_url(photo_id)
+        photo_url_sql = escape_sql(photo_url)
+        caption_sql = escape_sql(caption) if caption else 'NULL'
+        cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'photo', {photo_url_sql}, {caption_sql})")
+        
+        send_caption = f'💬 <b>Собеседник отправил фото</b>'
+        if caption:
+            caption_escaped = caption.replace('<', '&lt;').replace('>', '&gt;')
+            send_caption = f'💬 <b>Собеседник отправил фото:</b>\n{caption_escaped}'
+        
+        send_photo(partner_id, photo_id, send_caption)
     
     cursor.close()
     conn.close()
@@ -358,8 +419,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         chat_id = message['chat']['id']
         text = message.get('text', '')
         username = message.get('from', {}).get('username')
+        photo = message.get('photo')
         
-        if text == '/start':
+        if photo:
+            largest_photo = photo[-1]
+            photo_id = largest_photo['file_id']
+            caption = message.get('caption')
+            handle_photo(chat_id, photo_id, caption)
+        elif text == '/start':
             setup_webhook()
             handle_start(chat_id, username)
         elif text == '/stop':
