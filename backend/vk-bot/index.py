@@ -137,12 +137,23 @@ def create_chat(user1_id: int, user1_platform: str, user2_id: int, user2_platfor
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Get telegram_id for both users
+    cursor.execute('SELECT telegram_id FROM users WHERE platform = %s AND platform_id = %s', 
+                   (user1_platform, str(user1_id)))
+    user1_telegram_id = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT telegram_id FROM users WHERE platform = %s AND platform_id = %s', 
+                   (user2_platform, str(user2_id)))
+    user2_telegram_id = cursor.fetchone()[0]
+    
+    print(f"[VK] Creating chat: user1={user1_id} (platform={user1_platform}, telegram_id={user1_telegram_id}), user2={user2_id} (platform={user2_platform}, telegram_id={user2_telegram_id})")
+    
     cursor.execute('''
         INSERT INTO chats (user1_telegram_id, user2_telegram_id, is_active, user1_platform, user2_platform, 
                           user1_platform_id, user2_platform_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         RETURNING id
-    ''', (user1_id, user2_id, True, user1_platform, user2_platform, str(user1_id), str(user2_id)))
+    ''', (user1_telegram_id, user2_telegram_id, True, user1_platform, user2_platform, str(user1_id), str(user2_id)))
     
     chat_id = cursor.fetchone()[0]
     
