@@ -405,6 +405,7 @@ def handle_message(user_id: int, username: str, text: str) -> None:
         return
     
     if user['is_in_chat']:
+        print(f"[VK] User is in chat, handling chat commands")
         if text == '🛑 Стоп':
             handle_stop_chat(user_id)
         elif text == '➡️ Далее':
@@ -413,7 +414,9 @@ def handle_message(user_id: int, username: str, text: str) -> None:
             send_to_partner(user_id, text)
         return
     
+    print(f"[VK] User gender: {user.get('gender')}")
     if user['gender'] == 'not_set':
+        print(f"[VK] Gender not set, showing gender selection")
         if text == '👨 Мужской':
             update_user_gender(user_id, 'male')
             send_message(user_id, '✅ Пол установлен: Мужской')
