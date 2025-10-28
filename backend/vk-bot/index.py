@@ -36,6 +36,7 @@ def vk_api_call(method: str, params: Dict[str, Any]) -> Optional[Dict]:
 
 def send_message(user_id: int, text: str, keyboard: Optional[Dict] = None) -> bool:
     """Send message to VK user"""
+    print(f"[VK] Sending message to {user_id}: {text[:50]}...")
     params = {
         'user_id': user_id,
         'message': text,
@@ -46,7 +47,9 @@ def send_message(user_id: int, text: str, keyboard: Optional[Dict] = None) -> bo
         params['keyboard'] = json.dumps(keyboard)
     
     result = vk_api_call('messages.send', params)
-    return result is not None
+    success = result is not None
+    print(f"[VK] Message send result: {success}, response: {result}")
+    return success
 
 def get_or_create_user(user_id: int, username: str) -> None:
     """Get or create VK user in database"""
