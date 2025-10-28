@@ -257,7 +257,7 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
         
         searching_keyboard = {
             'keyboard': [
-                [{'text': '❌ Завершить диалог'}]
+                [{'text': '❌ Отменить поиск'}]
             ],
             'resize_keyboard': True
         }
@@ -621,6 +621,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif text == '👩 Искать женщину':
             handle_search(chat_id, 'female')
         elif text == '❌ Завершить диалог':
+            handle_stop_chat(chat_id)
+        elif text == '❌ Отменить поиск':
             handle_stop_chat(chat_id)
         elif text == '⚠️ Пожаловаться':
             handle_complaint(chat_id)
