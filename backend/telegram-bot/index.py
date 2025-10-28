@@ -91,6 +91,7 @@ def handle_start(chat_id: int, username: Optional[str]):
         '🔍 Найти собеседника - случайный поиск\n'
         '🎯 Найти по полу - выбрать пол собеседника\n\n'
         '💬 <b>В диалоге:</b>\n'
+        '/next - следующий собеседник\n'
         '/stop - завершить диалог\n'
         '/settings - настройки профиля'
     )
@@ -189,6 +190,9 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
         handle_set_gender(chat_id)
         return
     
+    gender_sql = escape_sql(preferred_gender)
+    cursor.execute(f"UPDATE users SET last_search_gender = {gender_sql} WHERE telegram_id = {chat_id}")
+    
     partner_id = find_partner(chat_id, preferred_gender)
     
     if partner_id:
@@ -248,6 +252,36 @@ def handle_stop_chat(chat_id: int):
     
     cursor.close()
     conn.close()
+
+def handle_next_chat(chat_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '❌ Ошибка. Используйте /start')
+        return
+    
+    if user['is_in_chat'] and user['current_chat_id']:
+        cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+        chat_data = cursor.fetchone()
+        
+        if chat_data:
+            partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+            
+            cursor.execute(f"UPDATE chats SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP WHERE id = {user['current_chat_id']}")
+            cursor.execute(f"UPDATE users SET is_in_chat = FALSE, current_chat_id = NULL WHERE telegram_id IN ({chat_id}, {partner_id})")
+            
+            send_message(partner_id, '👋 Собеседник завершил диалог')
+    
+    cursor.close()
+    conn.close()
+    
+    handle_search(chat_id, user.get('last_search_gender'))
 
 def handle_message(chat_id: int, text: str):
     conn = get_db_connection()
@@ -330,6 +364,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             handle_start(chat_id, username)
         elif text == '/stop':
             handle_stop_chat(chat_id)
+        elif text == '/next':
+            handle_next_chat(chat_id)
         elif text == '/settings':
             handle_settings(chat_id)
         elif text == '◀️ Назад':

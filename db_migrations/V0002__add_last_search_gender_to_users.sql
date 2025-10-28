@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN last_search_gender VARCHAR(10);
