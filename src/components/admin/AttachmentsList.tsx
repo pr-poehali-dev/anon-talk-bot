@@ -10,6 +10,7 @@ interface Attachment {
   id: number;
   chat_id: number;
   photo_url: string;
+  content_type: string;
   sent_at: string;
   sender_gender: string;
 }
@@ -21,6 +22,7 @@ interface AttachmentsListProps {
 
 export default function AttachmentsList({ attachments, onCleanupComplete }: AttachmentsListProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: string } | null>(null);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   const { toast } = useToast();
 
@@ -85,6 +87,21 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
     return { icon: 'User', color: 'text-gray-500' };
   };
 
+  const getMediaIcon = (type: string) => {
+    if (type === 'voice') return { icon: 'Mic', label: 'Голосовое' };
+    if (type === 'video_note') return { icon: 'VideoIcon', label: 'Кружок' };
+    if (type === 'video') return { icon: 'Video', label: 'Видео' };
+    return { icon: 'Image', label: 'Фото' };
+  };
+
+  const handleMediaClick = (attachment: Attachment) => {
+    if (attachment.content_type === 'photo') {
+      setSelectedImage(attachment.photo_url);
+    } else {
+      setSelectedMedia({ url: attachment.photo_url, type: attachment.content_type });
+    }
+  };
+
   return (
     <>
       <Card>
@@ -130,18 +147,28 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {attachments.map((attachment) => {
                 const genderInfo = getGenderIcon(attachment.sender_gender);
+                const mediaInfo = getMediaIcon(attachment.content_type);
+                const isPhoto = attachment.content_type === 'photo';
+                
                 return (
                   <div
                     key={attachment.id}
                     className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer transition-transform hover:scale-105"
-                    onClick={() => setSelectedImage(attachment.photo_url)}
+                    onClick={() => handleMediaClick(attachment)}
                   >
-                    <img
-                      src={attachment.photo_url}
-                      alt={`Фото из чата ${attachment.chat_id}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
+                    {isPhoto ? (
+                      <img
+                        src={attachment.photo_url}
+                        alt={`Фото из чата ${attachment.chat_id}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                        <Icon name={mediaInfo.icon as any} size={48} className="text-primary mb-2" />
+                        <span className="text-sm font-medium text-primary">{mediaInfo.label}</span>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 bg-red-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
                       <Icon name="Clock" size={12} />
                       {getTimeUntilDeletion(attachment.sent_at)}
@@ -184,6 +211,58 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
             className="max-w-full max-h-full object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {selectedMedia && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedMedia(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+            onClick={() => setSelectedMedia(null)}
+          >
+            <Icon name="X" size={32} />
+          </button>
+          <div className="bg-card p-6 rounded-lg max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            {selectedMedia.type === 'voice' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Icon name="Mic" size={24} className="text-primary" />
+                  <h3 className="text-lg font-semibold">Голосовое сообщение</h3>
+                </div>
+                <audio controls className="w-full">
+                  <source src={selectedMedia.url} type="audio/ogg" />
+                  Ваш браузер не поддерживает аудио.
+                </audio>
+              </div>
+            )}
+            {selectedMedia.type === 'video_note' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Icon name="VideoIcon" size={24} className="text-primary" />
+                  <h3 className="text-lg font-semibold">Видео-кружок</h3>
+                </div>
+                <video controls className="w-full rounded-lg">
+                  <source src={selectedMedia.url} type="video/mp4" />
+                  Ваш браузер не поддерживает видео.
+                </video>
+              </div>
+            )}
+            {selectedMedia.type === 'video' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Icon name="Video" size={24} className="text-primary" />
+                  <h3 className="text-lg font-semibold">Видео</h3>
+                </div>
+                <video controls className="w-full rounded-lg">
+                  <source src={selectedMedia.url} type="video/mp4" />
+                  Ваш браузер не поддерживает видео.
+                </video>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

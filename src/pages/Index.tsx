@@ -48,6 +48,7 @@ interface Attachment {
   id: number;
   chat_id: number;
   photo_url: string;
+  content_type: string;
   sent_at: string;
   sender_gender: string;
 }

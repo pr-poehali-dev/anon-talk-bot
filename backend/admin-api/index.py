@@ -192,6 +192,7 @@ def get_attachments() -> Dict[str, Any]:
             m.id,
             m.chat_id,
             m.photo_url,
+            m.content_type,
             m.sent_at,
             u.gender as sender_gender
         FROM t_p14838969_anon_talk_bot.messages m
@@ -212,6 +213,7 @@ def get_attachments() -> Dict[str, Any]:
             'id': int(att['id']),
             'chat_id': int(att['chat_id']),
             'photo_url': att['photo_url'],
+            'content_type': att['content_type'],
             'sent_at': att['sent_at'].isoformat(),
             'sender_gender': att['sender_gender'] or 'unknown'
         })
