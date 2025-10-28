@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS request for CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "VK confirmation request",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "type": "confirmation",
+        "group_id": 123456
+      },
+      "expectedStatus": 200,
+      "expectedBody": "CONFIRMATION_CODE_PLACEHOLDER",
+      "bodyMatcher": "exact"
+    }
+  ]
+}
