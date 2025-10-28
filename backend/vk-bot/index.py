@@ -53,11 +53,20 @@ def get_or_create_user(user_id: int, username: str) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Check if user exists
+    cursor.execute('SELECT id FROM users WHERE platform = %s AND platform_id = %s', ('vk', str(user_id)))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return
+    
+    # Generate unique telegram_id for VK users (use negative values starting from -1000000000)
+    vk_telegram_id = -(1000000000 + user_id)
+    
     cursor.execute('''
         INSERT INTO users (telegram_id, platform, platform_id, username, gender, is_searching, is_in_chat)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT DO NOTHING
-    ''', (user_id, 'vk', str(user_id), username, 'not_set', False, False))
+    ''', (vk_telegram_id, 'vk', str(user_id), username, 'not_set', False, False))
     
     conn.commit()
     cursor.close()
