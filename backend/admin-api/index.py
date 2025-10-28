@@ -164,9 +164,28 @@ def get_complaints() -> list:
     
     return {'complaints': result}
 
+def cleanup_old_attachments() -> int:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE t_p14838969_anon_talk_bot.messages
+        SET photo_url = NULL
+        WHERE photo_url IS NOT NULL 
+        AND sent_at < NOW() - INTERVAL '24 hours'
+    """)
+    
+    deleted_count = cursor.rowcount
+    cursor.close()
+    conn.close()
+    
+    return deleted_count
+
 def get_attachments() -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cleanup_old_attachments()
     
     cursor.execute("""
         SELECT 
@@ -178,6 +197,7 @@ def get_attachments() -> Dict[str, Any]:
         FROM t_p14838969_anon_talk_bot.messages m
         JOIN t_p14838969_anon_talk_bot.users u ON m.sender_telegram_id = u.telegram_id
         WHERE m.photo_url IS NOT NULL
+        AND m.sent_at >= NOW() - INTERVAL '24 hours'
         ORDER BY m.sent_at DESC
         LIMIT 100
     """)

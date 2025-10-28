@@ -1,0 +1,11 @@
+{
+  "tests": [
+    {
+      "name": "Cleanup old attachments",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

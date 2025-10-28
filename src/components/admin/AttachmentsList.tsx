@@ -23,13 +23,24 @@ export default function AttachmentsList({ attachments }: AttachmentsListProps) {
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
 
     if (diffMins < 1) return 'только что';
     if (diffMins < 60) return `${diffMins} мин назад`;
     if (diffHours < 24) return `${diffHours} ч назад`;
-    if (diffDays === 1) return 'вчера';
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
+  const getTimeUntilDeletion = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const deletionTime = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diffMs = deletionTime.getTime() - now.getTime();
+    const hoursLeft = Math.floor(diffMs / (60 * 60 * 1000));
+    const minsLeft = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+
+    if (hoursLeft > 0) return `${hoursLeft}ч`;
+    if (minsLeft > 0) return `${minsLeft}м`;
+    return 'скоро';
   };
 
   const getGenderIcon = (gender: string) => {
@@ -42,9 +53,15 @@ export default function AttachmentsList({ attachments }: AttachmentsListProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Icon name="Image" size={24} />
-            Вложения ({attachments.length})
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon name="Image" size={24} />
+              Вложения ({attachments.length})
+            </div>
+            <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+              <Icon name="Trash2" size={16} />
+              Автоудаление через 24ч
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -69,6 +86,10 @@ export default function AttachmentsList({ attachments }: AttachmentsListProps) {
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
+                    <div className="absolute top-2 right-2 bg-red-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                      <Icon name="Clock" size={12} />
+                      {getTimeUntilDeletion(attachment.sent_at)}
+                    </div>
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
                       <div className="flex justify-between items-start">
                         <span className={`text-xs ${genderInfo.color}`}>
