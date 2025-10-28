@@ -13,6 +13,27 @@ import requests
 
 BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+VK_GROUP_TOKEN = os.environ.get('VK_GROUP_TOKEN', '')
+VK_API_VERSION = '5.131'
+
+def send_vk_message(user_id: int, text: str, keyboard: Optional[Dict] = None) -> bool:
+    """Send message to VK user"""
+    import random
+    url = f'https://api.vk.com/method/messages.send'
+    params = {
+        'user_id': user_id,
+        'message': text,
+        'random_id': random.randint(0, 2147483647),
+        'access_token': VK_GROUP_TOKEN,
+        'v': VK_API_VERSION
+    }
+    
+    if keyboard:
+        params['keyboard'] = json.dumps(keyboard)
+    
+    response = requests.post(url, data=params)
+    result = response.json()
+    return 'response' in result
 
 def send_message(chat_id: int, text: str, reply_markup: Optional[Dict] = None) -> bool:
     url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
@@ -22,6 +43,19 @@ def send_message(chat_id: int, text: str, reply_markup: Optional[Dict] = None) -
     
     response = requests.post(url, json=data)
     return response.status_code == 200
+
+def send_cross_platform_message(telegram_id: int, platform: str, platform_id: str, text: str, keyboard=None) -> bool:
+    """Send message to user on any platform"""
+    if platform == 'vk':
+        # Convert Telegram keyboard to VK format
+        vk_keyboard = None
+        if keyboard and 'keyboard' in keyboard:
+            vk_keyboard = {
+                'buttons': [[{'action': {'type': 'text', 'label': btn['text']}} for btn in row] for row in keyboard['keyboard']]
+            }
+        return send_vk_message(int(platform_id), text, vk_keyboard)
+    else:  # telegram
+        return send_message(telegram_id, text, keyboard)
 
 def send_photo(chat_id: int, photo_id: str, caption: Optional[str] = None) -> bool:
     url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto'
@@ -163,6 +197,37 @@ def update_user_gender(telegram_id: int, gender: str):
     cursor.close()
     conn.close()
 
+def get_partner_info(chat_id: int) -> Optional[Dict]:
+    """Get partner info including platform details"""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        return None
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if not chat_data:
+        cursor.close()
+        conn.close()
+        return None
+    
+    partner_telegram_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {partner_telegram_id}")
+    partner = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    return dict(partner) if partner else None
+
 def handle_settings(chat_id: int):
     keyboard = {
         'keyboard': [
@@ -173,11 +238,11 @@ def handle_settings(chat_id: int):
     }
     send_message(chat_id, '⚙️ Настройки:', keyboard)
 
-def find_partner(telegram_id: int, preferred_gender: Optional[str] = None) -> Optional[int]:
+def find_partner(telegram_id: int, preferred_gender: Optional[str] = None) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    query = f"SELECT telegram_id FROM users WHERE is_searching = TRUE AND telegram_id != {telegram_id} AND is_blocked = FALSE"
+    query = f"SELECT * FROM users WHERE is_searching = TRUE AND telegram_id != {telegram_id} AND is_blocked = FALSE"
     
     if preferred_gender:
         gender_sql = escape_sql(preferred_gender)
@@ -191,7 +256,7 @@ def find_partner(telegram_id: int, preferred_gender: Optional[str] = None) -> Op
     cursor.close()
     conn.close()
     
-    return partner['telegram_id'] if partner else None
+    return dict(partner) if partner else None
 
 def create_chat(user1_id: int, user2_id: int) -> int:
     conn = get_db_connection()
@@ -241,10 +306,10 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
     gender_sql = escape_sql(preferred_gender)
     cursor.execute(f"UPDATE users SET last_search_gender = {gender_sql} WHERE telegram_id = {chat_id}")
     
-    partner_id = find_partner(chat_id, preferred_gender)
+    partner = find_partner(chat_id, preferred_gender)
     
-    if partner_id:
-        chat_db_id = create_chat(chat_id, partner_id)
+    if partner:
+        chat_db_id = create_chat(chat_id, partner['telegram_id'])
         
         chat_keyboard = {
             'keyboard': [
@@ -255,7 +320,14 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
         }
         
         send_message(chat_id, '✅ Собеседник найден! Можете начинать общение', chat_keyboard)
-        send_message(partner_id, '✅ Собеседник найден! Можете начинать общение', chat_keyboard)
+        # Send to partner using cross-platform method
+        send_cross_platform_message(
+            partner['telegram_id'], 
+            partner['platform'], 
+            partner['platform_id'], 
+            '✅ Собеседник найден! Можете начинать общение', 
+            chat_keyboard
+        )
     else:
         cursor.execute(f"UPDATE users SET is_searching = TRUE WHERE telegram_id = {chat_id}")
         search_text = '🔍 Ищем собеседника...'
