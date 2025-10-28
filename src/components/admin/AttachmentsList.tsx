@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { useToast } from '@/hooks/use-toast';
+
+const CLEANUP_API_URL = 'https://functions.poehali.dev/44deba1f-2392-4866-9015-8df267216a6c';
 
 interface Attachment {
   id: number;
@@ -12,10 +16,42 @@ interface Attachment {
 
 interface AttachmentsListProps {
   attachments: Attachment[];
+  onCleanupComplete: () => void;
 }
 
-export default function AttachmentsList({ attachments }: AttachmentsListProps) {
+export default function AttachmentsList({ attachments, onCleanupComplete }: AttachmentsListProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const { toast } = useToast();
+
+  const handleCleanup = async () => {
+    setIsCleaningUp(true);
+    try {
+      const response = await fetch(CLEANUP_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: 'Очистка завершена',
+          description: `Удалено вложений: ${data.deleted_count}`,
+        });
+        onCleanupComplete();
+      } else {
+        throw new Error(data.error || 'Ошибка очистки');
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось выполнить очистку',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -58,9 +94,29 @@ export default function AttachmentsList({ attachments }: AttachmentsListProps) {
               <Icon name="Image" size={24} />
               Вложения ({attachments.length})
             </div>
-            <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-              <Icon name="Trash2" size={16} />
-              Автоудаление через 24ч
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                <Icon name="Clock" size={16} />
+                Автоудаление 24ч
+              </div>
+              <Button 
+                onClick={handleCleanup} 
+                disabled={isCleaningUp || attachments.length === 0}
+                variant="destructive"
+                size="sm"
+              >
+                {isCleaningUp ? (
+                  <>
+                    <Icon name="Loader2" size={16} className="mr-2 animate-spin" />
+                    Очистка...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="Trash2" size={16} className="mr-2" />
+                    Очистить старые
+                  </>
+                )}
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>

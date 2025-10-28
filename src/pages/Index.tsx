@@ -275,7 +275,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="attachments">
-            <AttachmentsList attachments={attachments} />
+            <AttachmentsList attachments={attachments} onCleanupComplete={handleRefresh} />
           </TabsContent>
         </Tabs>
       </div>
