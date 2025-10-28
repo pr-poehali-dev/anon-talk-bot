@@ -60,8 +60,9 @@ def get_or_create_user(user_id: int, username: str) -> None:
         conn.close()
         return
     
-    # Generate unique telegram_id for VK users (use negative values starting from -1000000000)
-    vk_telegram_id = -(1000000000 + user_id)
+    # Generate unique telegram_id for VK users (use large positive values starting from 10000000000)
+    # This avoids conflicts with real Telegram IDs which are typically < 10 billion
+    vk_telegram_id = 10000000000 + user_id
     
     cursor.execute('''
         INSERT INTO users (telegram_id, platform, platform_id, username, gender, is_searching, is_in_chat)
