@@ -42,7 +42,34 @@ def send_photo(chat_id: int, photo_id: str, caption: Optional[str] = None) -> bo
     response = requests.post(url, json=data)
     return response.status_code == 200
 
-def get_photo_url(file_id: str) -> Optional[str]:
+def send_video(chat_id: int, video_id: str, caption: Optional[str] = None) -> bool:
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendVideo'
+    data = {'chat_id': chat_id, 'video': video_id}
+    if caption:
+        data['caption'] = caption
+        data['parse_mode'] = 'HTML'
+    
+    response = requests.post(url, json=data)
+    return response.status_code == 200
+
+def send_voice(chat_id: int, voice_id: str, caption: Optional[str] = None) -> bool:
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendVoice'
+    data = {'chat_id': chat_id, 'voice': voice_id}
+    if caption:
+        data['caption'] = caption
+        data['parse_mode'] = 'HTML'
+    
+    response = requests.post(url, json=data)
+    return response.status_code == 200
+
+def send_video_note(chat_id: int, video_note_id: str) -> bool:
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendVideoNote'
+    data = {'chat_id': chat_id, 'video_note': video_note_id}
+    
+    response = requests.post(url, json=data)
+    return response.status_code == 200
+
+def get_file_url(file_id: str) -> Optional[str]:
     try:
         url = f'https://api.telegram.org/bot{BOT_TOKEN}/getFile'
         response = requests.post(url, json={'file_id': file_id})
@@ -356,7 +383,7 @@ def handle_photo(chat_id: int, photo_id: str, caption: Optional[str] = None):
         
         cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
         
-        photo_url = get_photo_url(photo_id)
+        photo_url = get_file_url(photo_id)
         photo_url_sql = escape_sql(photo_url)
         caption_sql = escape_sql(caption) if caption else 'NULL'
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'photo', {photo_url_sql}, {caption_sql})")
@@ -367,6 +394,102 @@ def handle_photo(chat_id: int, photo_id: str, caption: Optional[str] = None):
             send_caption = f'💬 <b>Собеседник отправил фото:</b>\n{caption_escaped}'
         
         send_photo(partner_id, photo_id, send_caption)
+    
+    cursor.close()
+    conn.close()
+
+def handle_video(chat_id: int, video_id: str, caption: Optional[str] = None):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
+        return
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if chat_data:
+        partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+        
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
+        
+        video_url = get_file_url(video_id)
+        video_url_sql = escape_sql(video_url)
+        caption_sql = escape_sql(caption) if caption else 'NULL'
+        cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'video', {video_url_sql}, {caption_sql})")
+        
+        send_caption = f'🎥 <b>Собеседник отправил видео</b>'
+        if caption:
+            caption_escaped = caption.replace('<', '&lt;').replace('>', '&gt;')
+            send_caption = f'🎥 <b>Собеседник отправил видео:</b>\n{caption_escaped}'
+        
+        send_video(partner_id, video_id, send_caption)
+    
+    cursor.close()
+    conn.close()
+
+def handle_voice(chat_id: int, voice_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
+        return
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if chat_data:
+        partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+        
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
+        
+        voice_url = get_file_url(voice_id)
+        voice_url_sql = escape_sql(voice_url)
+        cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url) VALUES ({user['current_chat_id']}, {chat_id}, 'voice', {voice_url_sql})")
+        
+        send_voice(partner_id, voice_id, '🎤 <b>Голосовое сообщение от собеседника</b>')
+    
+    cursor.close()
+    conn.close()
+
+def handle_video_note(chat_id: int, video_note_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
+    user = cursor.fetchone()
+    
+    if not user or not user['is_in_chat'] or not user['current_chat_id']:
+        cursor.close()
+        conn.close()
+        send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
+        return
+    
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
+    chat_data = cursor.fetchone()
+    
+    if chat_data:
+        partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
+        
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
+        
+        video_note_url = get_file_url(video_note_id)
+        video_note_url_sql = escape_sql(video_note_url)
+        cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url) VALUES ({user['current_chat_id']}, {chat_id}, 'video_note', {video_note_url_sql})")
+        
+        send_video_note(partner_id, video_note_id)
     
     cursor.close()
     conn.close()
@@ -420,12 +543,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         text = message.get('text', '')
         username = message.get('from', {}).get('username')
         photo = message.get('photo')
+        video = message.get('video')
+        voice = message.get('voice')
+        video_note = message.get('video_note')
         
         if photo:
             largest_photo = photo[-1]
             photo_id = largest_photo['file_id']
             caption = message.get('caption')
             handle_photo(chat_id, photo_id, caption)
+        elif video:
+            video_id = video['file_id']
+            caption = message.get('caption')
+            handle_video(chat_id, video_id, caption)
+        elif voice:
+            voice_id = voice['file_id']
+            handle_voice(chat_id, voice_id)
+        elif video_note:
+            video_note_id = video_note['file_id']
+            handle_video_note(chat_id, video_note_id)
         elif text == '/start':
             setup_webhook()
             handle_start(chat_id, username)
