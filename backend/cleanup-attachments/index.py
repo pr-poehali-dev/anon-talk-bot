@@ -37,6 +37,26 @@ def cleanup_old_attachments() -> Dict[str, Any]:
         'timestamp': 'NOW()'
     }
 
+def delete_all_attachments() -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE t_p14838969_anon_talk_bot.messages
+        SET photo_url = NULL
+        WHERE photo_url IS NOT NULL
+    """)
+    
+    deleted_count = cursor.rowcount
+    
+    cursor.close()
+    conn.close()
+    
+    return {
+        'deleted_count': deleted_count,
+        'timestamp': 'NOW()'
+    }
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = event.get('httpMethod', 'GET')
     
@@ -53,7 +73,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     try:
-        result = cleanup_old_attachments()
+        body_str = event.get('body', '')
+        body = json.loads(body_str) if body_str else {}
+        delete_all = body.get('delete_all', False)
+        
+        if delete_all:
+            result = delete_all_attachments()
+        else:
+            result = cleanup_old_attachments()
         
         return {
             'statusCode': 200,

@@ -24,6 +24,7 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: string } | null>(null);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const { toast } = useToast();
 
   const handleCleanup = async () => {
@@ -52,6 +53,40 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
       });
     } finally {
       setIsCleaningUp(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm(`Вы уверены? Будет удалено ${attachments.length} вложений.`)) {
+      return;
+    }
+    
+    setIsDeletingAll(true);
+    try {
+      const response = await fetch(CLEANUP_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_all: true })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: 'Все вложения удалены',
+          description: `Удалено: ${data.deleted_count}`,
+        });
+        onCleanupComplete();
+      } else {
+        throw new Error(data.error || 'Ошибка удаления');
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось удалить вложения',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -118,8 +153,8 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
               </div>
               <Button 
                 onClick={handleCleanup} 
-                disabled={isCleaningUp || attachments.length === 0}
-                variant="destructive"
+                disabled={isCleaningUp || isDeletingAll || attachments.length === 0}
+                variant="outline"
                 size="sm"
               >
                 {isCleaningUp ? (
@@ -131,6 +166,24 @@ export default function AttachmentsList({ attachments, onCleanupComplete }: Atta
                   <>
                     <Icon name="Trash2" size={16} className="mr-2" />
                     Очистить старые
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={handleDeleteAll} 
+                disabled={isCleaningUp || isDeletingAll || attachments.length === 0}
+                variant="destructive"
+                size="sm"
+              >
+                {isDeletingAll ? (
+                  <>
+                    <Icon name="Loader2" size={16} className="mr-2 animate-spin" />
+                    Удаление...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="Trash" size={16} className="mr-2" />
+                    Удалить всё
                   </>
                 )}
               </Button>
