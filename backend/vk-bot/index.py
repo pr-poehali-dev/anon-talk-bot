@@ -425,6 +425,16 @@ def handle_message(user_id: int, username: str, text: str) -> None:
             update_user_gender(user_id, 'female')
             send_message(user_id, '✅ Пол установлен: Женский')
             handle_start(user_id, username)
+        else:
+            # Show gender selection keyboard
+            keyboard = {
+                'one_time': True,
+                'buttons': [
+                    [{'action': {'type': 'text', 'label': '👨 Мужской'}}],
+                    [{'action': {'type': 'text', 'label': '👩 Женский'}}]
+                ]
+            }
+            send_message(user_id, '👋 Привет! Это анонимный чат для общения.\n\n🔹 Выбери свой пол:', keyboard)
         return
     
     if text in ['начать', 'start', '/start', 'Начать']:
