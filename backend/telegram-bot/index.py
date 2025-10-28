@@ -24,35 +24,38 @@ def send_message(chat_id: int, text: str, reply_markup: Optional[Dict] = None) -
     return response.status_code == 200
 
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    return conn
+
+def escape_sql(value: Any) -> str:
+    if value is None:
+        return 'NULL'
+    if isinstance(value, bool):
+        return 'TRUE' if value else 'FALSE'
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{str(value).replace(chr(39), chr(39)+chr(39))}'"
 
 def get_or_create_user(telegram_id: int, username: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute(
-        "SELECT * FROM users WHERE telegram_id = %s",
-        (telegram_id,)
-    )
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {telegram_id}")
     user = cursor.fetchone()
     
     if not user:
+        username_sql = escape_sql(username)
         cursor.execute(
-            "INSERT INTO users (telegram_id, username, last_active) VALUES (%s, %s, CURRENT_TIMESTAMP) RETURNING *",
-            (telegram_id, username)
+            f"INSERT INTO users (telegram_id, username, last_active) VALUES ({telegram_id}, {username_sql}, CURRENT_TIMESTAMP) RETURNING *"
         )
         user = cursor.fetchone()
-        conn.commit()
     else:
-        cursor.execute(
-            "UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE telegram_id = %s",
-            (telegram_id,)
-        )
-        conn.commit()
+        cursor.execute(f"UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE telegram_id = {telegram_id}")
     
     cursor.close()
     conn.close()
-    return dict(user)
+    return dict(user) if user else {}
 
 def handle_start(chat_id: int, username: Optional[str]):
     user = get_or_create_user(chat_id, username)
@@ -96,11 +99,8 @@ def handle_set_gender(chat_id: int):
 def update_user_gender(telegram_id: int, gender: str):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE users SET gender = %s WHERE telegram_id = %s",
-        (gender, telegram_id)
-    )
-    conn.commit()
+    gender_sql = escape_sql(gender)
+    cursor.execute(f"UPDATE users SET gender = {gender_sql} WHERE telegram_id = {telegram_id}")
     cursor.close()
     conn.close()
 
@@ -108,21 +108,15 @@ def find_partner(telegram_id: int, preferred_gender: Optional[str] = None) -> Op
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    query = """
-        SELECT telegram_id FROM users 
-        WHERE is_searching = TRUE 
-        AND telegram_id != %s
-        AND is_blocked = FALSE
-    """
-    params = [telegram_id]
+    query = f"SELECT telegram_id FROM users WHERE is_searching = TRUE AND telegram_id != {telegram_id} AND is_blocked = FALSE"
     
     if preferred_gender:
-        query += " AND gender = %s"
-        params.append(preferred_gender)
+        gender_sql = escape_sql(preferred_gender)
+        query += f" AND gender = {gender_sql}"
     
     query += " LIMIT 1"
     
-    cursor.execute(query, tuple(params))
+    cursor.execute(query)
     partner = cursor.fetchone()
     
     cursor.close()
@@ -134,18 +128,11 @@ def create_chat(user1_id: int, user2_id: int) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute(
-        "INSERT INTO chats (user1_telegram_id, user2_telegram_id) VALUES (%s, %s) RETURNING id",
-        (user1_id, user2_id)
-    )
+    cursor.execute(f"INSERT INTO chats (user1_telegram_id, user2_telegram_id) VALUES ({user1_id}, {user2_id}) RETURNING id")
     chat_id = cursor.fetchone()[0]
     
-    cursor.execute(
-        "UPDATE users SET is_searching = FALSE, is_in_chat = TRUE, current_chat_id = %s WHERE telegram_id IN (%s, %s)",
-        (chat_id, user1_id, user2_id)
-    )
+    cursor.execute(f"UPDATE users SET is_searching = FALSE, is_in_chat = TRUE, current_chat_id = {chat_id} WHERE telegram_id IN ({user1_id}, {user2_id})")
     
-    conn.commit()
     cursor.close()
     conn.close()
     return chat_id
@@ -154,7 +141,7 @@ def handle_search(chat_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (chat_id,))
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
     user = cursor.fetchone()
     
     if not user:
@@ -189,11 +176,7 @@ def handle_search(chat_id: int):
         send_message(chat_id, '✅ Собеседник найден! Можете начинать общение')
         send_message(partner_id, '✅ Собеседник найден! Можете начинать общение')
     else:
-        cursor.execute(
-            "UPDATE users SET is_searching = TRUE WHERE telegram_id = %s",
-            (chat_id,)
-        )
-        conn.commit()
+        cursor.execute(f"UPDATE users SET is_searching = TRUE WHERE telegram_id = {chat_id}")
         send_message(chat_id, '🔍 Ищем собеседника...')
     
     cursor.close()
@@ -203,7 +186,7 @@ def handle_stop_chat(chat_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (chat_id,))
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
     user = cursor.fetchone()
     
     if not user:
@@ -212,28 +195,17 @@ def handle_stop_chat(chat_id: int):
         return
     
     if user['is_searching']:
-        cursor.execute("UPDATE users SET is_searching = FALSE WHERE telegram_id = %s", (chat_id,))
-        conn.commit()
+        cursor.execute(f"UPDATE users SET is_searching = FALSE WHERE telegram_id = {chat_id}")
         send_message(chat_id, '❌ Поиск остановлен')
     elif user['is_in_chat'] and user['current_chat_id']:
-        cursor.execute(
-            "SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = %s AND is_active = TRUE",
-            (user['current_chat_id'],)
-        )
+        cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
         chat_data = cursor.fetchone()
         
         if chat_data:
             partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
             
-            cursor.execute(
-                "UPDATE chats SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP WHERE id = %s",
-                (user['current_chat_id'],)
-            )
-            cursor.execute(
-                "UPDATE users SET is_in_chat = FALSE, current_chat_id = NULL WHERE telegram_id IN (%s, %s)",
-                (chat_id, partner_id)
-            )
-            conn.commit()
+            cursor.execute(f"UPDATE chats SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP WHERE id = {user['current_chat_id']}")
+            cursor.execute(f"UPDATE users SET is_in_chat = FALSE, current_chat_id = NULL WHERE telegram_id IN ({chat_id}, {partner_id})")
             
             send_message(chat_id, '👋 Диалог завершён')
             send_message(partner_id, '👋 Собеседник завершил диалог')
@@ -247,7 +219,7 @@ def handle_message(chat_id: int, text: str):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (chat_id,))
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
     user = cursor.fetchone()
     
     if not user or not user['is_in_chat'] or not user['current_chat_id']:
@@ -256,22 +228,16 @@ def handle_message(chat_id: int, text: str):
         send_message(chat_id, '⚠️ Вы не в диалоге. Используйте "Найти собеседника"')
         return
     
-    cursor.execute(
-        "SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = %s AND is_active = TRUE",
-        (user['current_chat_id'],)
-    )
+    cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
     chat_data = cursor.fetchone()
     
     if chat_data:
         partner_id = chat_data['user2_telegram_id'] if chat_data['user1_telegram_id'] == chat_id else chat_data['user1_telegram_id']
         
-        cursor.execute(
-            "UPDATE chats SET message_count = message_count + 1 WHERE id = %s",
-            (user['current_chat_id'],)
-        )
-        conn.commit()
+        cursor.execute(f"UPDATE chats SET message_count = message_count + 1 WHERE id = {user['current_chat_id']}")
         
-        send_message(partner_id, f'💬 <b>Собеседник:</b>\n{text}')
+        text_escaped = text.replace('<', '&lt;').replace('>', '&gt;')
+        send_message(partner_id, f'💬 <b>Собеседник:</b>\n{text_escaped}')
     
     cursor.close()
     conn.close()
@@ -280,7 +246,7 @@ def handle_complaint(chat_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (chat_id,))
+    cursor.execute(f"SELECT * FROM users WHERE telegram_id = {chat_id}")
     user = cursor.fetchone()
     
     if not user or not user['is_in_chat'] or not user['current_chat_id']:
@@ -289,11 +255,8 @@ def handle_complaint(chat_id: int):
         send_message(chat_id, '⚠️ Вы не в диалоге')
         return
     
-    cursor.execute(
-        "INSERT INTO complaints (chat_id, reporter_telegram_id, reason) VALUES (%s, %s, %s)",
-        (user['current_chat_id'], chat_id, 'Жалоба от пользователя')
-    )
-    conn.commit()
+    reason_sql = escape_sql('Жалоба от пользователя')
+    cursor.execute(f"INSERT INTO complaints (chat_id, reporter_telegram_id, reason) VALUES ({user['current_chat_id']}, {chat_id}, {reason_sql})")
     
     send_message(chat_id, '✅ Жалоба отправлена администрации')
     
