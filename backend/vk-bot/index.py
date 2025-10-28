@@ -550,11 +550,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     # VK Callback API confirmation
     if body.get('type') == 'confirmation':
-        # User needs to set this in VK group settings
         return {
             'statusCode': 200,
             'headers': {'Content-Type': 'text/plain'},
-            'body': 'CONFIRMATION_CODE_PLACEHOLDER',
+            'body': '436abbb5',
             'isBase64Encoded': False
         }
     

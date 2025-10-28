@@ -15,7 +15,7 @@
         "group_id": 123456
       },
       "expectedStatus": 200,
-      "expectedBody": "CONFIRMATION_CODE_PLACEHOLDER",
+      "expectedBody": "436abbb5",
       "bodyMatcher": "exact"
     }
   ]
