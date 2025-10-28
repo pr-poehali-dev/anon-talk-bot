@@ -450,7 +450,7 @@ def handle_voice(chat_id: int, voice_id: str):
         voice_url_sql = escape_sql(voice_url)
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url) VALUES ({user['current_chat_id']}, {chat_id}, 'voice', {voice_url_sql})")
         
-        send_voice(partner_id, voice_id, None)
+        send_voice(partner_id, voice_id)
     
     cursor.close()
     conn.close()
