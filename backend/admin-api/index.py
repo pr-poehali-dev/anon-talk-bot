@@ -58,14 +58,14 @@ def get_stats() -> Dict[str, Any]:
         FROM chats
         WHERE started_at > NOW() - INTERVAL '24 hours'
     """)
-    avg_duration = cursor.fetchone()['avg_duration_minutes'] or 0
+    avg_duration = float(cursor.fetchone()['avg_duration_minutes'] or 0)
     
     cursor.execute("""
         SELECT SUM(message_count) as total_messages
         FROM chats
         WHERE started_at > NOW() - INTERVAL '24 hours'
     """)
-    total_messages = cursor.fetchone()['total_messages'] or 0
+    total_messages = int(cursor.fetchone()['total_messages'] or 0)
     
     cursor.close()
     conn.close()
@@ -79,7 +79,7 @@ def get_stats() -> Dict[str, Any]:
             'male': gender_stats['male_count'] or 0,
             'female': gender_stats['female_count'] or 0
         },
-        'hourly_stats': [dict(row) for row in hourly_stats],
+        'hourly_stats': [{'hour': int(row['hour']), 'users': int(row['count']), 'chats': int(row['count'])} for row in hourly_stats],
         'avg_chat_duration_minutes': round(float(avg_duration), 2),
         'total_messages_today': total_messages
     }
@@ -110,21 +110,15 @@ def get_active_chats() -> list:
     
     result = []
     for chat in chats:
-        duration_minutes = int(chat['duration_minutes'])
-        hours = duration_minutes // 60
-        minutes = duration_minutes % 60
-        
-        gender_label = f"{chat['user1_gender'][0].upper() if chat['user1_gender'] else '?'} ↔ {chat['user2_gender'][0].upper() if chat['user2_gender'] else '?'}"
-        
         result.append({
-            'id': f"CH-{str(chat['id']).zfill(3)}",
-            'duration': f"{hours:02d}:{minutes:02d}",
-            'gender': gender_label,
-            'messages': chat['message_count'],
-            'status': 'active'
+            'id': int(chat['id']),
+            'user1_gender': chat['user1_gender'] or 'unknown',
+            'user2_gender': chat['user2_gender'] or 'unknown',
+            'message_count': int(chat['message_count']),
+            'duration_minutes': float(chat['duration_minutes'])
         })
     
-    return result
+    return {'chats': result}
 
 def get_complaints() -> list:
     conn = get_db_connection()
@@ -134,10 +128,14 @@ def get_complaints() -> list:
         SELECT 
             c.id,
             c.chat_id,
+            c.reporter_telegram_id,
             c.reason,
             c.status,
-            c.created_at
+            c.created_at,
+            ch.user1_telegram_id,
+            ch.user2_telegram_id
         FROM complaints c
+        LEFT JOIN chats ch ON ch.id = c.chat_id
         ORDER BY c.created_at DESC
         LIMIT 50
     """)
@@ -148,23 +146,65 @@ def get_complaints() -> list:
     
     result = []
     for complaint in complaints:
+        reported_user_id = None
+        if complaint['user1_telegram_id'] and complaint['user2_telegram_id']:
+            if complaint['reporter_telegram_id'] == complaint['user1_telegram_id']:
+                reported_user_id = complaint['user2_telegram_id']
+            else:
+                reported_user_id = complaint['user1_telegram_id']
+        
         result.append({
-            'id': f"R-{str(complaint['id']).zfill(3)}",
-            'chatId': f"CH-{str(complaint['chat_id']).zfill(3)}",
+            'id': complaint['id'],
+            'chat_id': complaint['chat_id'],
+            'reported_user_id': reported_user_id,
             'reason': complaint['reason'],
             'status': complaint['status'],
-            'time': complaint['created_at'].strftime('%H:%M')
+            'created_at': complaint['created_at'].isoformat()
         })
     
-    return result
+    return {'complaints': result}
+
+def block_user(telegram_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(f"UPDATE users SET is_blocked = TRUE WHERE telegram_id = {telegram_id}")
+    
+    cursor.execute(f"""
+        UPDATE chats 
+        SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP 
+        WHERE (user1_telegram_id = {telegram_id} OR user2_telegram_id = {telegram_id}) 
+        AND is_active = TRUE
+    """)
+    
+    cursor.execute(f"UPDATE users SET is_in_chat = FALSE, current_chat_id = NULL WHERE telegram_id = {telegram_id}")
+    
+    cursor.close()
+    conn.close()
+    
+    return True
+
+def resolve_complaint(complaint_id: int, status: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    status_escaped = status.replace("'", "''")
+    cursor.execute(f"UPDATE complaints SET status = '{status_escaped}' WHERE id = {complaint_id}")
+    
+    cursor.close()
+    conn.close()
+    
+    return True
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    if event.get('httpMethod') == 'OPTIONS':
+    method = event.get('httpMethod', 'GET')
+    
+    if method == 'OPTIONS':
         return {
             'statusCode': 200,
             'headers': {
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type',
                 'Access-Control-Max-Age': '86400'
             },
@@ -172,34 +212,110 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     try:
-        params = event.get('queryStringParameters', {}) or {}
-        endpoint = params.get('endpoint', 'stats')
-        
-        if endpoint == 'stats':
-            data = get_stats()
-        elif endpoint == 'chats':
-            data = get_active_chats()
-        elif endpoint == 'complaints':
-            data = get_complaints()
-        else:
+        if method == 'GET':
+            params = event.get('queryStringParameters', {}) or {}
+            endpoint = params.get('endpoint', 'stats')
+            
+            if endpoint == 'stats':
+                data = get_stats()
+            elif endpoint == 'chats':
+                data = get_active_chats()
+            elif endpoint == 'complaints':
+                data = get_complaints()
+            else:
+                return {
+                    'statusCode': 400,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'error': 'Invalid endpoint'})
+                }
+            
             return {
-                'statusCode': 400,
+                'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 },
-                'body': json.dumps({'error': 'Invalid endpoint'})
+                'body': json.dumps(data)
             }
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(data),
-            'isBase64Encoded': False
-        }
+        elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            action = body.get('action')
+            
+            if action == 'block_user':
+                telegram_id = body.get('telegram_id')
+                if not telegram_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*'
+                        },
+                        'body': json.dumps({'error': 'telegram_id required'})
+                    }
+                
+                block_user(telegram_id)
+                
+                complaint_id = body.get('complaint_id')
+                if complaint_id:
+                    resolve_complaint(complaint_id, 'resolved')
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'success': True})
+                }
+            
+            elif action == 'resolve_complaint':
+                complaint_id = body.get('complaint_id')
+                status = body.get('status', 'resolved')
+                
+                if not complaint_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*'
+                        },
+                        'body': json.dumps({'error': 'complaint_id required'})
+                    }
+                
+                resolve_complaint(complaint_id, status)
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'success': True})
+                }
+            
+            else:
+                return {
+                    'statusCode': 400,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'error': 'Invalid action'})
+                }
+        
+        else:
+            return {
+                'statusCode': 405,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': 'Method not allowed'})
+            }
     
     except Exception as e:
         return {

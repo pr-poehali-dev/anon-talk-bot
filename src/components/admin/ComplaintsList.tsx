@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 
 interface Complaint {
   id: number;
   chat_id: number;
+  reported_user_id: number | null;
   reason: string;
   created_at: string;
   status: string;
@@ -12,9 +15,14 @@ interface Complaint {
 
 interface ComplaintsListProps {
   complaints: Complaint[];
+  onAction: () => void;
 }
 
-export default function ComplaintsList({ complaints }: ComplaintsListProps) {
+const API_URL = 'https://functions.poehali.dev/3d80763a-6e9c-47e8-ad39-f66f686907a6';
+
+export default function ComplaintsList({ complaints, onAction }: ComplaintsListProps) {
+  const [loading, setLoading] = useState<number | null>(null);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('ru-RU', {
@@ -39,6 +47,67 @@ export default function ComplaintsList({ complaints }: ComplaintsListProps) {
     }
   };
 
+  const handleBlockUser = async (complaint: Complaint) => {
+    if (!complaint.reported_user_id) {
+      alert('Не удалось определить пользователя для блокировки');
+      return;
+    }
+
+    if (!confirm('Вы уверены, что хотите заблокировать этого пользователя?')) {
+      return;
+    }
+
+    setLoading(complaint.id);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'block_user',
+          telegram_id: complaint.reported_user_id,
+          complaint_id: complaint.id
+        })
+      });
+
+      if (response.ok) {
+        onAction();
+      } else {
+        alert('Ошибка при блокировке пользователя');
+      }
+    } catch (error) {
+      alert('Ошибка подключения к серверу');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleResolve = async (complaintId: number, status: 'resolved' | 'rejected') => {
+    setLoading(complaintId);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resolve_complaint',
+          complaint_id: complaintId,
+          status
+        })
+      });
+
+      if (response.ok) {
+        onAction();
+      } else {
+        alert('Ошибка при обновлении статуса');
+      }
+    } catch (error) {
+      alert('Ошибка подключения к серверу');
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {complaints.length === 0 ? (
@@ -49,7 +118,7 @@ export default function ComplaintsList({ complaints }: ComplaintsListProps) {
       ) : (
         complaints.map((complaint) => (
           <Card key={complaint.id} className="p-4 hover:bg-accent/5 transition-colors">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-4 flex-1">
                 <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
                   <Icon name="Flag" size={20} className="text-red-500" />
@@ -68,6 +137,33 @@ export default function ComplaintsList({ complaints }: ComplaintsListProps) {
                   </div>
                 </div>
               </div>
+              
+              {complaint.status === 'pending' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleBlockUser(complaint)}
+                    disabled={loading === complaint.id}
+                  >
+                    {loading === complaint.id ? (
+                      <Icon name="Loader2" size={14} className="mr-1 animate-spin" />
+                    ) : (
+                      <Icon name="Ban" size={14} className="mr-1" />
+                    )}
+                    Бан
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResolve(complaint.id, 'rejected')}
+                    disabled={loading === complaint.id}
+                  >
+                    <Icon name="X" size={14} className="mr-1" />
+                    Отклонить
+                  </Button>
+                </div>
+              )}
             </div>
           </Card>
         ))

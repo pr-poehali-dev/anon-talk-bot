@@ -247,7 +247,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="complaints">
-            <ComplaintsList complaints={complaints} />
+            <ComplaintsList complaints={complaints} onAction={handleRefresh} />
           </TabsContent>
         </Tabs>
       </div>
