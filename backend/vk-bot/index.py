@@ -32,6 +32,10 @@ def vk_api_call(method: str, params: Dict[str, Any]) -> Optional[Dict]:
     
     if 'response' in result:
         return result['response']
+    
+    if 'error' in result:
+        print(f"[VK API ERROR] Method: {method}, Error: {result['error']}")
+    
     return None
 
 def send_message(user_id: int, text: str, keyboard: Optional[Dict] = None) -> bool:
