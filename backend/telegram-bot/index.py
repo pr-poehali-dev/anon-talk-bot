@@ -281,9 +281,16 @@ def handle_stop_chat(chat_id: int):
         conn.close()
         return
     
+    main_keyboard = {
+        'keyboard': [
+            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}]
+        ],
+        'resize_keyboard': True
+    }
+    
     if user['is_searching']:
         cursor.execute(f"UPDATE users SET is_searching = FALSE WHERE telegram_id = {chat_id}")
-        send_message(chat_id, '❌ Поиск остановлен')
+        send_message(chat_id, '❌ Поиск остановлен', main_keyboard)
     elif user['is_in_chat'] and user['current_chat_id']:
         cursor.execute(f"SELECT user1_telegram_id, user2_telegram_id FROM chats WHERE id = {user['current_chat_id']} AND is_active = TRUE")
         chat_data = cursor.fetchone()
@@ -294,10 +301,10 @@ def handle_stop_chat(chat_id: int):
             cursor.execute(f"UPDATE chats SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP WHERE id = {user['current_chat_id']}")
             cursor.execute(f"UPDATE users SET is_in_chat = FALSE, current_chat_id = NULL WHERE telegram_id IN ({chat_id}, {partner_id})")
             
-            send_message(chat_id, '👋 Диалог завершён')
-            send_message(partner_id, '👋 Собеседник завершил диалог')
+            send_message(chat_id, '👋 Диалог завершён', main_keyboard)
+            send_message(partner_id, '👋 Собеседник завершил диалог', main_keyboard)
     else:
-        send_message(chat_id, '⚠️ Вы не в диалоге')
+        send_message(chat_id, '⚠️ Вы не в диалоге', main_keyboard)
     
     cursor.close()
     conn.close()
