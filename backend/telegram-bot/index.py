@@ -569,8 +569,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         conn.close()
         
         if user_check and user_check['is_searching']:
-            if text not in ['/stop', '❌ Завершить диалог']:
-                send_message(chat_id, '⏳ Идёт поиск собеседника... Используйте /stop для отмены')
+            if text not in ['/stop', '❌ Завершить диалог', '❌ Отменить поиск']:
+                send_message(chat_id, '⏳ Идёт поиск собеседника... Используйте "❌ Отменить поиск" для отмены')
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json'},
