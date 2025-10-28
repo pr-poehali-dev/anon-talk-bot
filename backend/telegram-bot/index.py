@@ -348,7 +348,7 @@ def handle_message(chat_id: int, text: str):
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'text', {text_escaped})")
         
         text_escaped = text.replace('<', '&lt;').replace('>', '&gt;')
-        send_message(partner_id, f'💬 <b>Собеседник:</b>\n{text_escaped}')
+        send_message(partner_id, text_escaped)
     
     cursor.close()
     conn.close()
@@ -379,10 +379,10 @@ def handle_photo(chat_id: int, photo_id: str, caption: Optional[str] = None):
         caption_sql = escape_sql(caption) if caption else 'NULL'
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'photo', {photo_url_sql}, {caption_sql})")
         
-        send_caption = f'💬 <b>Собеседник отправил фото</b>'
+        send_caption = None
         if caption:
             caption_escaped = caption.replace('<', '&lt;').replace('>', '&gt;')
-            send_caption = f'💬 <b>Собеседник отправил фото:</b>\n{caption_escaped}'
+            send_caption = caption_escaped
         
         send_photo(partner_id, photo_id, send_caption)
     
@@ -415,10 +415,10 @@ def handle_video(chat_id: int, video_id: str, caption: Optional[str] = None):
         caption_sql = escape_sql(caption) if caption else 'NULL'
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url, text_content) VALUES ({user['current_chat_id']}, {chat_id}, 'video', {video_url_sql}, {caption_sql})")
         
-        send_caption = f'🎥 <b>Собеседник отправил видео</b>'
+        send_caption = None
         if caption:
             caption_escaped = caption.replace('<', '&lt;').replace('>', '&gt;')
-            send_caption = f'🎥 <b>Собеседник отправил видео:</b>\n{caption_escaped}'
+            send_caption = caption_escaped
         
         send_video(partner_id, video_id, send_caption)
     
@@ -450,7 +450,7 @@ def handle_voice(chat_id: int, voice_id: str):
         voice_url_sql = escape_sql(voice_url)
         cursor.execute(f"INSERT INTO t_p14838969_anon_talk_bot.messages (chat_id, sender_telegram_id, content_type, photo_url) VALUES ({user['current_chat_id']}, {chat_id}, 'voice', {voice_url_sql})")
         
-        send_voice(partner_id, voice_id, '🎤 <b>Голосовое сообщение от собеседника</b>')
+        send_voice(partner_id, voice_id, None)
     
     cursor.close()
     conn.close()
