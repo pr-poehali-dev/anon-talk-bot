@@ -23,6 +23,16 @@
       "path": "/?endpoint=complaints",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get attachments",
+      "method": "GET",
+      "path": "/?endpoint=attachments",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "attachments": []
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }

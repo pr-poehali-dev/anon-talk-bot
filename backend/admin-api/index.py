@@ -1,7 +1,7 @@
 '''
-Business: Admin API for getting stats, active chats, complaints
+Business: Admin API for getting stats, active chats, complaints, attachments
 Args: event with httpMethod, queryStringParameters; context with request_id
-Returns: JSON with statistics, chats or complaints
+Returns: JSON with statistics, chats, complaints or attachments
 '''
 
 import json
@@ -164,6 +164,40 @@ def get_complaints() -> list:
     
     return {'complaints': result}
 
+def get_attachments() -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("""
+        SELECT 
+            m.id,
+            m.chat_id,
+            m.photo_url,
+            m.sent_at,
+            u.gender as sender_gender
+        FROM t_p14838969_anon_talk_bot.messages m
+        JOIN t_p14838969_anon_talk_bot.users u ON m.sender_telegram_id = u.telegram_id
+        WHERE m.photo_url IS NOT NULL
+        ORDER BY m.sent_at DESC
+        LIMIT 100
+    """)
+    
+    attachments = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    result = []
+    for att in attachments:
+        result.append({
+            'id': int(att['id']),
+            'chat_id': int(att['chat_id']),
+            'photo_url': att['photo_url'],
+            'sent_at': att['sent_at'].isoformat(),
+            'sender_gender': att['sender_gender'] or 'unknown'
+        })
+    
+    return {'attachments': result}
+
 def block_user(telegram_id: int) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -222,6 +256,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 data = get_active_chats()
             elif endpoint == 'complaints':
                 data = get_complaints()
+            elif endpoint == 'attachments':
+                data = get_attachments()
             else:
                 return {
                     'statusCode': 400,

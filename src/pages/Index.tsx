@@ -9,6 +9,7 @@ import GenderDistribution from '@/components/admin/GenderDistribution';
 import StatsMetrics from '@/components/admin/StatsMetrics';
 import ActiveChatsList from '@/components/admin/ActiveChatsList';
 import ComplaintsList from '@/components/admin/ComplaintsList';
+import AttachmentsList from '@/components/admin/AttachmentsList';
 
 const API_URL = 'https://functions.poehali.dev/3d80763a-6e9c-47e8-ad39-f66f686907a6';
 const AUTH_API_URL = 'https://functions.poehali.dev/7c36ba9c-1436-4f94-ac57-6e4d16640f39';
@@ -43,11 +44,20 @@ interface Complaint {
   status: string;
 }
 
+interface Attachment {
+  id: number;
+  chat_id: number;
+  photo_url: string;
+  sent_at: string;
+  sender_gender: string;
+}
+
 export default function Index() {
   const [activeTab, setActiveTab] = useState('stats');
   const [stats, setStats] = useState<Stats | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -138,11 +148,21 @@ export default function Index() {
     }
   };
 
+  const fetchAttachments = async () => {
+    try {
+      const response = await fetch(`${API_URL}?endpoint=attachments`);
+      const data = await response.json();
+      setAttachments(data.attachments || []);
+    } catch (error) {
+      console.error('Failed to fetch attachments:', error);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       const loadData = async () => {
         setLoading(true);
-        await Promise.all([fetchStats(), fetchChats(), fetchComplaints()]);
+        await Promise.all([fetchStats(), fetchChats(), fetchComplaints(), fetchAttachments()]);
         setLoading(false);
       };
       loadData();
@@ -151,7 +171,7 @@ export default function Index() {
 
   const handleRefresh = async () => {
     setLoading(true);
-    await Promise.all([fetchStats(), fetchChats(), fetchComplaints()]);
+    await Promise.all([fetchStats(), fetchChats(), fetchComplaints(), fetchAttachments()]);
     setLoading(false);
   };
 
@@ -214,7 +234,7 @@ export default function Index() {
         <StatsCards stats={stats} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 h-14">
+          <TabsList className="grid w-full grid-cols-4 h-14">
             <TabsTrigger value="stats" className="text-base">
               <Icon name="BarChart3" size={18} className="mr-2" />
               Статистика
@@ -226,6 +246,10 @@ export default function Index() {
             <TabsTrigger value="complaints" className="text-base">
               <Icon name="Flag" size={18} className="mr-2" />
               Жалобы
+            </TabsTrigger>
+            <TabsTrigger value="attachments" className="text-base">
+              <Icon name="Image" size={18} className="mr-2" />
+              Вложения
             </TabsTrigger>
           </TabsList>
 
@@ -248,6 +272,10 @@ export default function Index() {
 
           <TabsContent value="complaints">
             <ComplaintsList complaints={complaints} onAction={handleRefresh} />
+          </TabsContent>
+
+          <TabsContent value="attachments">
+            <AttachmentsList attachments={attachments} />
           </TabsContent>
         </Tabs>
       </div>
