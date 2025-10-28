@@ -237,8 +237,17 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
     
     if partner_id:
         chat_db_id = create_chat(chat_id, partner_id)
-        send_message(chat_id, '✅ Собеседник найден! Можете начинать общение')
-        send_message(partner_id, '✅ Собеседник найден! Можете начинать общение')
+        
+        chat_keyboard = {
+            'keyboard': [
+                [{'text': '❌ Завершить диалог'}],
+                [{'text': '🔍 Найти нового собеседника'}]
+            ],
+            'resize_keyboard': True
+        }
+        
+        send_message(chat_id, '✅ Собеседник найден! Можете начинать общение', chat_keyboard)
+        send_message(partner_id, '✅ Собеседник найден! Можете начинать общение', chat_keyboard)
     else:
         cursor.execute(f"UPDATE users SET is_searching = TRUE WHERE telegram_id = {chat_id}")
         search_text = '🔍 Ищем собеседника...'
@@ -601,6 +610,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             handle_stop_chat(chat_id)
         elif text == '⚠️ Пожаловаться':
             handle_complaint(chat_id)
+        elif text == '🔍 Найти нового собеседника':
+            handle_next_chat(chat_id)
         else:
             handle_message(chat_id, text)
         
