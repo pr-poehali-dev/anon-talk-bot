@@ -254,7 +254,14 @@ def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
         if preferred_gender:
             gender_text = '👨 мужского' if preferred_gender == 'male' else '👩 женского'
             search_text = f'🎯 Ищем собеседника {gender_text} пола...'
-        send_message(chat_id, search_text)
+        
+        searching_keyboard = {
+            'keyboard': [
+                [{'text': '❌ Завершить диалог'}]
+            ],
+            'resize_keyboard': True
+        }
+        send_message(chat_id, search_text, searching_keyboard)
     
     cursor.close()
     conn.close()
