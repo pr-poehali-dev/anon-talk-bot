@@ -126,7 +126,8 @@ def handle_start(chat_id: int, username: Optional[str]):
     
     keyboard = {
         'keyboard': [
-            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}]
+            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}],
+            [{'text': '⚙️ Настройки'}]
         ],
         'resize_keyboard': True
     }
@@ -297,7 +298,8 @@ def handle_stop_chat(chat_id: int):
     
     main_keyboard = {
         'keyboard': [
-            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}]
+            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}],
+            [{'text': '⚙️ Настройки'}]
         ],
         'resize_keyboard': True
     }
@@ -636,6 +638,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif text == '/next':
             handle_next_chat(chat_id)
         elif text == '/settings':
+            handle_settings(chat_id)
+        elif text == '⚙️ Настройки':
             handle_settings(chat_id)
         elif text == '◀️ Назад':
             handle_start(chat_id, username)
