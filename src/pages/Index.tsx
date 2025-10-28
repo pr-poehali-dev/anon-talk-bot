@@ -109,7 +109,7 @@ export default function Index() {
     { name: 'Женщины', value: stats.gender_distribution.female || 0 },
   ] : [];
 
-  const chartData = stats?.hourly_stats.map(item => ({
+  const chartData = stats?.hourly_stats?.map(item => ({
     time: `${String(item.hour).padStart(2, '0')}:00`,
     users: item.users,
     chats: item.chats,
