@@ -115,6 +115,16 @@ def update_user_gender(telegram_id: int, gender: str):
     cursor.close()
     conn.close()
 
+def handle_settings(chat_id: int):
+    keyboard = {
+        'keyboard': [
+            [{'text': '🔄 Изменить пол'}],
+            [{'text': '◀️ Назад'}]
+        ],
+        'resize_keyboard': True
+    }
+    send_message(chat_id, '⚙️ Настройки:', keyboard)
+
 def find_partner(telegram_id: int, preferred_gender: Optional[str] = None) -> Optional[int]:
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -319,6 +329,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if text == '/start':
             setup_webhook()
             handle_start(chat_id, username)
+        elif text == '/stop':
+            handle_stop_chat(chat_id)
+        elif text == '/settings':
+            handle_settings(chat_id)
+        elif text == '◀️ Назад':
+            handle_start(chat_id, username)
+        elif text == '🔄 Изменить пол':
+            handle_set_gender(chat_id)
         elif text == '👨 Мужской':
             update_user_gender(chat_id, 'male')
             send_message(chat_id, '✅ Пол установлен: Мужской')
