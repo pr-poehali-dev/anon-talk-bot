@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Get statistics",
+      "method": "GET",
+      "path": "/?endpoint=stats",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "active_chats": 0
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get active chats",
+      "method": "GET",
+      "path": "/?endpoint=chats",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get complaints",
+      "method": "GET",
+      "path": "/?endpoint=complaints",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
