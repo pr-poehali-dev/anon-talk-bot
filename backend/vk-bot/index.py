@@ -50,6 +50,7 @@ def send_message(user_id: int, text: str, keyboard: Optional[Dict] = None) -> bo
 
 def get_or_create_user(user_id: int, username: str) -> None:
     """Get or create VK user in database"""
+    print(f"[VK] Creating/checking user: {user_id}, username: {username}")
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -63,11 +64,13 @@ def get_or_create_user(user_id: int, username: str) -> None:
     # Generate unique telegram_id for VK users (use large positive values starting from 10000000000)
     # This avoids conflicts with real Telegram IDs which are typically < 10 billion
     vk_telegram_id = 10000000000 + user_id
+    print(f"[VK] Creating new user with telegram_id: {vk_telegram_id}")
     
     cursor.execute('''
         INSERT INTO users (telegram_id, platform, platform_id, username, gender, is_searching, is_in_chat)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     ''', (vk_telegram_id, 'vk', str(user_id), username, 'not_set', False, False))
+    print(f"[VK] User created successfully")
     
     conn.commit()
     cursor.close()
@@ -465,12 +468,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         message = body['object']['message']
         user_id = message['from_id']
         text = message.get('text', '')
+        print(f"[VK] Received message from user {user_id}: {text}")
         
         # Get username
         user_info = vk_api_call('users.get', {'user_ids': str(user_id)})
         username = f"{user_info[0]['first_name']} {user_info[0]['last_name']}" if user_info else 'User'
+        print(f"[VK] Username: {username}")
         
         handle_message(user_id, username, text)
+        print(f"[VK] Message handled successfully")
     
     return {
         'statusCode': 200,
