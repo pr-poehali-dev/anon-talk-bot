@@ -76,7 +76,7 @@ def handle_start(chat_id: int, username: Optional[str]):
     keyboard = {
         'keyboard': [
             [{'text': '👤 Указать пол'}],
-            [{'text': '🔍 Найти собеседника'}],
+            [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}],
             [{'text': '❌ Завершить диалог'}],
             [{'text': '⚠️ Пожаловаться'}]
         ],
@@ -88,7 +88,8 @@ def handle_start(chat_id: int, username: Optional[str]):
         'Здесь вы можете общаться с незнакомцами полностью анонимно.\n\n'
         '📋 <b>Команды:</b>\n'
         '👤 Указать пол - выбрать мужской/женский\n'
-        '🔍 Найти собеседника - начать поиск\n'
+        '🔍 Найти собеседника - случайный поиск\n'
+        '🎯 Найти по полу - выбрать пол собеседника\n'
         '❌ Завершить диалог - закончить текущий чат\n'
         '⚠️ Пожаловаться - отправить жалобу'
     )
@@ -146,7 +147,7 @@ def create_chat(user1_id: int, user2_id: int) -> int:
     conn.close()
     return chat_id
 
-def handle_search(chat_id: int):
+def handle_search(chat_id: int, preferred_gender: Optional[str] = None):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -178,7 +179,7 @@ def handle_search(chat_id: int):
         handle_set_gender(chat_id)
         return
     
-    partner_id = find_partner(chat_id)
+    partner_id = find_partner(chat_id, preferred_gender)
     
     if partner_id:
         chat_db_id = create_chat(chat_id, partner_id)
@@ -186,10 +187,24 @@ def handle_search(chat_id: int):
         send_message(partner_id, '✅ Собеседник найден! Можете начинать общение')
     else:
         cursor.execute(f"UPDATE users SET is_searching = TRUE WHERE telegram_id = {chat_id}")
-        send_message(chat_id, '🔍 Ищем собеседника...')
+        search_text = '🔍 Ищем собеседника...'
+        if preferred_gender:
+            gender_text = '👨 мужского' if preferred_gender == 'male' else '👩 женского'
+            search_text = f'🎯 Ищем собеседника {gender_text} пола...'
+        send_message(chat_id, search_text)
     
     cursor.close()
     conn.close()
+
+def handle_gender_search(chat_id: int):
+    keyboard = {
+        'keyboard': [
+            [{'text': '👨 Искать мужчину'}, {'text': '👩 Искать женщину'}],
+            [{'text': '◀️ Назад'}]
+        ],
+        'resize_keyboard': True
+    }
+    send_message(chat_id, '🎯 Выберите пол собеседника:', keyboard)
 
 def handle_stop_chat(chat_id: int):
     conn = get_db_connection()
@@ -317,6 +332,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             handle_start(chat_id, username)
         elif text == '🔍 Найти собеседника':
             handle_search(chat_id)
+        elif text == '🎯 Найти по полу':
+            handle_gender_search(chat_id)
+        elif text == '👨 Искать мужчину':
+            handle_search(chat_id, 'male')
+        elif text == '👩 Искать женщину':
+            handle_search(chat_id, 'female')
         elif text == '❌ Завершить диалог':
             handle_stop_chat(chat_id)
         elif text == '⚠️ Пожаловаться':
