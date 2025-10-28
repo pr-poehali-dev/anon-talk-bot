@@ -259,13 +259,17 @@ def send_to_partner(user_id: int, text: str) -> bool:
 
 def handle_start(user_id: int, username: str) -> None:
     """Handle start command"""
+    print(f"[VK] handle_start for user {user_id}")
     get_or_create_user(user_id, username)
     user = get_user(user_id)
+    print(f"[VK] Got user data: {user}")
     
     if not user:
+        print(f"[VK] User not found after creation!")
         send_message(user_id, '❌ Ошибка при создании профиля')
         return
     
+    print(f"[VK] User gender: {user.get('gender')}")
     if user['gender'] == 'not_set':
         keyboard = {
             'one_time': True,
@@ -391,9 +395,12 @@ def handle_gender_search(user_id: int) -> None:
 
 def handle_message(user_id: int, username: str, text: str) -> None:
     """Handle incoming message"""
+    print(f"[VK] handle_message for user {user_id}, text: {text}")
     user = get_user(user_id)
+    print(f"[VK] User found: {user is not None}")
     
     if not user:
+        print(f"[VK] User not found, calling handle_start")
         handle_start(user_id, username)
         return
     
