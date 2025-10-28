@@ -73,9 +73,12 @@ def handle_start(chat_id: int, username: Optional[str]):
         send_message(chat_id, '🚫 Вы заблокированы')
         return
     
+    if not user.get('gender'):
+        handle_set_gender(chat_id)
+        return
+    
     keyboard = {
         'keyboard': [
-            [{'text': '👤 Указать пол'}],
             [{'text': '🔍 Найти собеседника'}, {'text': '🎯 Найти по полу'}],
             [{'text': '❌ Завершить диалог'}],
             [{'text': '⚠️ Пожаловаться'}]
@@ -87,7 +90,6 @@ def handle_start(chat_id: int, username: Optional[str]):
         '🎭 <b>Добро пожаловать в анонимный чат!</b>\n\n'
         'Здесь вы можете общаться с незнакомцами полностью анонимно.\n\n'
         '📋 <b>Команды:</b>\n'
-        '👤 Указать пол - выбрать мужской/женский\n'
         '🔍 Найти собеседника - случайный поиск\n'
         '🎯 Найти по полу - выбрать пол собеседника\n'
         '❌ Завершить диалог - закончить текущий чат\n'
@@ -99,12 +101,11 @@ def handle_start(chat_id: int, username: Optional[str]):
 def handle_set_gender(chat_id: int):
     keyboard = {
         'keyboard': [
-            [{'text': '👨 Мужской'}, {'text': '👩 Женский'}],
-            [{'text': '◀️ Назад'}]
+            [{'text': '👨 Мужской'}, {'text': '👩 Женский'}]
         ],
         'resize_keyboard': True
     }
-    send_message(chat_id, '👤 Выберите ваш пол:', keyboard)
+    send_message(chat_id, '👤 Выберите ваш пол для начала:', keyboard)
 
 def update_user_gender(telegram_id: int, gender: str):
     conn = get_db_connection()
@@ -318,10 +319,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if text == '/start':
             setup_webhook()
             handle_start(chat_id, username)
-        elif text == '◀️ Назад':
-            handle_start(chat_id, username)
-        elif text == '👤 Указать пол':
-            handle_set_gender(chat_id)
         elif text == '👨 Мужской':
             update_user_gender(chat_id, 'male')
             send_message(chat_id, '✅ Пол установлен: Мужской')
